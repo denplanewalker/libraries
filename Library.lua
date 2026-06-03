@@ -190,10 +190,10 @@ local Library do
         },
 
         Folders = {
-            Directory = "Neyrone",
-            Configs = "Neyrone/Configs",
-            Assets = "Neyrone/Assets",
-            Themes = "Neyrone/Themes"
+            Directory = "HELLSHADE/DF",
+            Configs = "HELLSHADE/DF/Configs",
+            Assets = "HELLSHADE/DF/Assets",
+            Themes = "HELLSHADE/DF/Themes"
         },
 
         Images = {
@@ -317,10 +317,20 @@ local Library do
     Library.Pages.__index = Library.Pages
     Library.Sections.__index = Library.Sections
 
-    for _, FileName in Library.Folders do
-        if not isfolder(FileName) then
-            makefolder(FileName)
-        end
+    if not isfolder("HELLSHADE") then
+        makefolder("HELLSHADE")
+    end
+    if not isfolder(Library.Folders.Directory) then
+        makefolder(Library.Folders.Directory)
+    end
+    if not isfolder(Library.Folders.Configs) then
+        makefolder(Library.Folders.Configs)
+    end
+    if not isfolder(Library.Folders.Assets) then
+        makefolder(Library.Folders.Assets)
+    end
+    if not isfolder(Library.Folders.Themes) then
+        makefolder(Library.Folders.Themes)
     end
 
     for _, Image in Library.Images do
