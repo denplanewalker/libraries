@@ -79,18 +79,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(22,  18,  28),
-            Inline      = FromRGB(30,  24,  38),
+            Background  = FromRGB(0,   0,   0),
+            Inline      = FromRGB(16,  16,  20),
             Border      = FromRGB(140,  90, 180),
             Outline     = FromRGB(10,   8,  14),
             Accent      = FromRGB(180, 110, 220),
             AccentDim   = FromRGB(120,  70, 170),
             Text        = FromRGB(235, 225, 245),
             TextDim     = FromRGB(170, 160, 190),
-            Element     = FromRGB(45,  35,  60),
+            Element     = FromRGB(28,  28,  34),
             Risky       = FromRGB(255,  70,  70),
             Divider     = FromRGB(140,  90, 180),
-            SliderBg    = FromRGB(55,  38,  75),
+            SliderBg    = FromRGB(40,  40,  48),
         },
 
         Holder       = nil,
@@ -194,7 +194,8 @@ local Library do
         for _, c in ipairs(self.Connections) do pcall(function() c:Disconnect() end) end
         for _, t in ipairs(self.Threads)     do pcall(function() coroutine.close(t) end) end
         UserInputService.MouseIconEnabled = true
-        if self.Holder then pcall(function() self.Holder:Destroy() end) end
+        if self.Holder   then pcall(function() self.Holder:Destroy()   end) end
+        if CursorGui     then pcall(function() CursorGui:Destroy()     end) end
         if getgenv then getgenv().AuroraLegacy = nil end
     end
 
@@ -214,26 +215,39 @@ local Library do
     -- Custom cursor
     --   Purple down-triangle with a black outline that replaces the
     --   system mouse icon while the GUI is open.
+    --   Lives on its own ScreenGui with DisplayOrder high enough
+    --   to draw above the menu but is fully non-interactive, so it
+    --   never blocks clicks on the toggles / buttons below it.
     ----------------------------------------------------------------
+    local CursorGui = new("ScreenGui", {
+        Name                   = "AuroraLegacyCursor",
+        IgnoreGuiInset         = true,
+        DisplayOrder           = 9999,
+        ResetOnSpawn           = false,
+        Parent                 = gethui_fn(),
+    })
     local Cursor = new("TextLabel", {
-        Parent                 = Library.Holder,
-        Size                   = UDim2New(0, 16, 0, 14),
+        Parent                 = CursorGui,
+        Active                 = false,
+        Size                   = UDim2New(0, 28, 0, 28),
         BackgroundTransparency = 1,
-        Font                   = Enum.Font.GothamBold,
-        TextSize               = 18,
-        Text                   = "▼",
+        Font                   = Enum.Font.GothamBlack,
+        TextSize               = 28,
+        Text                   = "↖",
         TextColor3             = Library.Theme.Accent,
         TextStrokeTransparency = 0,
         TextStrokeColor3       = Library.Theme.Background,
         Visible                = false,
-        ZIndex                 = 9999,
     })
     local cursorConn
     local function followCursor()
         if cursorConn then return end
         cursorConn = Library:Connect(RunService.RenderStepped, function()
             local pos = UserInputService:GetMouseLocation()
-            Cursor.Position = UDim2New(0, pos.X - 2, 0, pos.Y - 4)
+            -- "↖" tip sits at the top-left of the glyph, so anchor the
+            -- frame's top-left to (mouseX, mouseY) with a 1px nudge
+            -- to keep the tip exactly under the system pointer.
+            Cursor.Position = UDim2New(0, pos.X - 1, 0, pos.Y - 1)
         end)
     end
     local function unfollowCursor()
@@ -317,20 +331,38 @@ local Library do
     --   %ping%   network ping in ms
     --   %time%   HH:MM (24h, local clock)
     --   %date%   YYYY-MM-DD
+    --
+    --   Watermark width is fixed (no auto-resize). Default widths
+    --   for the standard 6 fields fit the layout in the screenshot.
+    --   Pass a `widths` table to override, e.g.
+    --       Library:Watermark({...}, {70, 30, 110, 60, 60, 40})
     ----------------------------------------------------------------
-    function Library:Watermark(text)
+    local WATERMARK_DEFAULTS = { 70, 30, 100, 56, 56, 38 }
+    local WATERMARK_SEP_W    = 14
+    local WATERMARK_PAD      = 8
+
+    function Library:Watermark(text, widths)
         local fields
         if type(text) == "table" then fields = text else fields = { tostring(text) } end
+
+        -- compute fixed total width
+        local totalW = WATERMARK_PAD * 2
+        for i = 1, #fields do
+            local w = (widths and widths[i]) or WATERMARK_DEFAULTS[i] or 60
+            totalW = totalW + w
+            if i > 1 then totalW = totalW + WATERMARK_SEP_W end
+        end
 
         local wm = new("Frame", {
             Parent           = self.Holder,
             Position         = UDim2New(0, 12, 0, 10),
-            Size             = UDim2New(0, 0, 0, 24),
-            AutomaticSize    = Enum.AutomaticSize.X,
+            Size             = UDim2New(0, totalW, 0, 24),
             BackgroundColor3 = self.Theme.Inline,
             BorderSizePixel  = 0,
+            ClipsDescendants = true,
         })
-        stroke(self.Theme.Border, 1, 0.2).Parent = wm
+        stroke(self.Theme.Accent, 1, 0.1).Parent = wm
+        stroke(self.Theme.Accent, 2, 0.7).Parent  = wm
         new("Frame", {
             Parent           = wm,
             Size             = UDim2New(1, 0, 0, 2),
@@ -340,8 +372,7 @@ local Library do
 
         local row = new("Frame", {
             Parent                 = wm,
-            Size                   = UDim2New(0, 0, 1, 0),
-            AutomaticSize          = Enum.AutomaticSize.X,
+            Size                   = UDim2New(1, 0, 1, 0),
             BackgroundTransparency = 1,
         })
         new("UIListLayout", {
@@ -352,8 +383,8 @@ local Library do
         })
         new("UIPadding", {
             Parent       = row,
-            PaddingLeft  = UDimNew(0, 8),
-            PaddingRight = UDimNew(0, 8),
+            PaddingLeft  = UDimNew(0, WATERMARK_PAD),
+            PaddingRight = UDimNew(0, WATERMARK_PAD),
         })
 
         -- live data sources
@@ -405,11 +436,12 @@ local Library do
         local dynamicLabels = {}
 
         local function buildField(i, raw)
+            local fieldW = (widths and widths[i]) or WATERMARK_DEFAULTS[i] or 60
             if i > 1 then
                 new("TextLabel", {
                     Parent                 = row,
                     LayoutOrder            = i * 2 - 1,
-                    Size                   = UDim2New(0, 14, 1, 0),
+                    Size                   = UDim2New(0, WATERMARK_SEP_W, 1, 0),
                     BackgroundTransparency = 1,
                     Font                   = self.Font,
                     TextSize               = 13,
@@ -420,13 +452,14 @@ local Library do
             local lbl = new("TextLabel", {
                 Parent                 = row,
                 LayoutOrder            = i * 2,
-                Size                   = UDim2New(0, 0, 1, 0),
-                AutomaticSize          = Enum.AutomaticSize.X,
+                Size                   = UDim2New(0, fieldW, 1, 0),
                 BackgroundTransparency = 1,
                 Font                   = self.Font,
                 TextSize               = 12,
                 Text                   = resolve(raw),
                 TextColor3             = (i == 1) and self.Theme.Accent or self.Theme.Text,
+                TextTruncate           = Enum.TextTruncate.AtEnd,
+                TextXAlignment         = Enum.TextXAlignment.Center,
             })
             labels[i] = { Label = lbl, Raw = raw }
             if isDynamic(raw) then
@@ -478,7 +511,9 @@ local Library do
             BorderSizePixel  = 0,
         })
         corner(5).Parent = win
-        stroke(self.Theme.Border, 1, 0.2).Parent = win
+        -- layered glow: crisp 1px inner border + soft 3px outer halo
+        stroke(self.Theme.Accent, 1, 0).Parent    = win
+        stroke(self.Theme.Accent, 3, 0.65).Parent = win
 
         new("TextLabel", {
             Parent                 = win,
@@ -572,7 +607,9 @@ local Library do
             BorderSizePixel  = 0,
         })
         corner(6).Parent = main
-        stroke(self.Theme.Border, 1, 0.2).Parent = main
+        -- layered glow: crisp 1px inner border + soft 3px outer halo
+        stroke(self.Theme.Accent, 1, 0).Parent    = main
+        stroke(self.Theme.Accent, 3, 0.65).Parent = main
 
         -- Title
         local titleBar = new("Frame", {
@@ -986,7 +1023,19 @@ local Library do
         function Toggle:Get()        return self.Value end
         function Toggle:SetVisible(b) row.Visible = b end
 
-        box.MouseButton1Click:Connect(function() Toggle:Set(not Toggle.Value) end)
+        local function flip() Toggle:Set(not Toggle.Value) end
+        box.MouseButton1Click:Connect(flip)
+        -- make the whole row clickable too (so the label area works)
+        local hit = new("TextButton", {
+            Parent                 = row,
+            Size                   = UDim2New(1, -40, 1, 0),
+            Position               = UDim2New(0, 18, 0, 0),
+            BackgroundTransparency = 1,
+            Text                   = "",
+            AutoButtonColor        = false,
+            ZIndex                 = 0,
+        })
+        hit.MouseButton1Click:Connect(flip)
         Library.SetFlags[Toggle.Flag] = function(v) Toggle:Set(v) end
 
         if Toggle.Default then Toggle:Set(true) end
