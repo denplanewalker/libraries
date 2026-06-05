@@ -78,18 +78,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(8,    8,  12),
-            Inline      = FromRGB(18,  18,  24),
-            Border      = FromRGB(140,  90, 180),
-            Outline     = FromRGB(10,   8,  14),
-            Accent      = FromRGB(180, 110, 220),
-            AccentDim   = FromRGB(120,  70, 170),
-            Text        = FromRGB(235, 225, 245),
-            TextDim     = FromRGB(170, 160, 190),
-            Element     = FromRGB(28,  28,  36),
-            Risky       = FromRGB(255,  70,  70),
-            Divider     = FromRGB(140,  90,  180),
-            SliderBg    = FromRGB(38,  38,  48),
+            Background  = FromRGB(8,    8,    8),
+            Inline      = FromRGB(18,   18,   22),
+            Border      = FromRGB(140,  90,   180),
+            Outline     = FromRGB(10,   8,    14),
+            Accent      = FromRGB(180,  110,  220),
+            AccentDim   = FromRGB(120,  70,   170),
+            Text        = FromRGB(235,  225,  245),
+            TextDim     = FromRGB(170,  160,  190),
+            Element     = FromRGB(30,   30,   38),
+            Risky       = FromRGB(255,  70,   70),
+            Divider     = FromRGB(140,  90,   180),
+            SliderBg    = FromRGB(42,   42,   52),
         },
 
         Holder       = nil,
@@ -232,7 +232,7 @@ local Library do
         BackgroundTransparency = 1,
         Font                   = Enum.Font.GothamBlack,
         TextSize               = 28,
-        Text                   = "↖",
+        Text                   = "▼",
         TextColor3             = Library.Theme.Accent,
         TextStrokeTransparency = 0,
         TextStrokeColor3       = Library.Theme.Background,
@@ -243,10 +243,8 @@ local Library do
         if cursorConn then return end
         cursorConn = Library:Connect(RunService.RenderStepped, function()
             local pos = UserInputService:GetMouseLocation()
-            -- "↖" tip sits at the top-left of the glyph, so anchor the
-            -- frame's top-left to (mouseX, mouseY) with a 1px nudge
-            -- to keep the tip exactly under the system pointer.
-            Cursor.Position = UDim2New(0, pos.X - 1, 0, pos.Y - 1)
+            -- center the cursor on the mouse position
+            Cursor.Position = UDim2New(0, pos.X - 14, 0, pos.Y - 14)
         end)
     end
     local function unfollowCursor()
