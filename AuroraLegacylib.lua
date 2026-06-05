@@ -79,18 +79,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(20,  16,  26),
-            Inline      = FromRGB(28,  22,  36),
-            Border      = FromRGB(120,  70, 160),
+            Background  = FromRGB(22,  18,  28),
+            Inline      = FromRGB(30,  24,  38),
+            Border      = FromRGB(140,  90, 180),
             Outline     = FromRGB(10,   8,  14),
-            Accent      = FromRGB(200, 130, 235),
-            AccentDim   = FromRGB(150,  90, 190),
+            Accent      = FromRGB(180, 110, 220),
+            AccentDim   = FromRGB(120,  70, 170),
             Text        = FromRGB(235, 225, 245),
-            TextDim     = FromRGB(180, 170, 200),
+            TextDim     = FromRGB(170, 160, 190),
             Element     = FromRGB(45,  35,  60),
             Risky       = FromRGB(255,  70,  70),
-            Divider     = FromRGB(150,  90, 190),
-            SliderBg    = FromRGB(60,  40,  80),
+            Divider     = FromRGB(140,  90, 180),
+            SliderBg    = FromRGB(55,  38,  75),
         },
 
         Holder       = nil,
@@ -118,7 +118,8 @@ local Library do
         return inst
     end
 
-    local function corner(r)  return new("UICorner", { CornerRadius = UDimNew(0, r or 4) }) end
+    -- corner() is intentionally a no-op: this UI uses sharp edges only.
+    local function corner(_) return InstanceNew("Folder") end
     local function stroke(c, t, a)
         return new("UIStroke", {
             Color = c or Library.Theme.Border, Thickness = t or 1,
@@ -192,6 +193,7 @@ local Library do
     function Library:Unload()
         for _, c in ipairs(self.Connections) do pcall(function() c:Disconnect() end) end
         for _, t in ipairs(self.Threads)     do pcall(function() coroutine.close(t) end) end
+        UserInputService.MouseIconEnabled = true
         if self.Holder then pcall(function() self.Holder:Destroy() end) end
         if getgenv then getgenv().AuroraLegacy = nil end
     end
@@ -207,6 +209,47 @@ local Library do
         ResetOnSpawn     = false,
         Parent           = gethui_fn(),
     })
+
+    ----------------------------------------------------------------
+    -- Custom cursor
+    --   Purple down-triangle with a black outline that replaces the
+    --   system mouse icon while the GUI is open.
+    ----------------------------------------------------------------
+    local Cursor = new("TextLabel", {
+        Parent                 = Library.Holder,
+        Size                   = UDim2New(0, 16, 0, 14),
+        BackgroundTransparency = 1,
+        Font                   = Enum.Font.GothamBold,
+        TextSize               = 18,
+        Text                   = "▼",
+        TextColor3             = Library.Theme.Accent,
+        TextStrokeTransparency = 0,
+        TextStrokeColor3       = Library.Theme.Background,
+        Visible                = false,
+        ZIndex                 = 9999,
+    })
+    local cursorConn
+    local function followCursor()
+        if cursorConn then return end
+        cursorConn = Library:Connect(RunService.RenderStepped, function()
+            local pos = UserInputService:GetMouseLocation()
+            Cursor.Position = UDim2New(0, pos.X - 2, 0, pos.Y - 4)
+        end)
+    end
+    local function unfollowCursor()
+        if cursorConn then
+            cursorConn:Disconnect()
+            cursorConn = nil
+        end
+    end
+    local function setCursorVisible(b)
+        Cursor.Visible = b
+        UserInputService.MouseIconEnabled = not b
+    end
+    function Library:SetCursor(b)
+        setCursorVisible(b and true or false)
+        if b then followCursor() else unfollowCursor() end
+    end
 
     ----------------------------------------------------------------
     -- Notifications (top-center)
@@ -264,8 +307,21 @@ local Library do
 
     ----------------------------------------------------------------
     -- Watermark
+    --   Library:Watermark("text")                       -- single static line
+    --   Library:Watermark({ "Sirex.cc", "Full",
+    --                       "%user%", "%fps%", "%ping%", "%time%" })
+    -- Supported live tokens (replaced every frame):
+    --   %user%   LocalPlayer.Name
+    --   %disp%   LocalPlayer.DisplayName
+    --   %fps%    smoothed frames-per-second
+    --   %ping%   network ping in ms
+    --   %time%   HH:MM (24h, local clock)
+    --   %date%   YYYY-MM-DD
     ----------------------------------------------------------------
     function Library:Watermark(text)
+        local fields
+        if type(text) == "table" then fields = text else fields = { tostring(text) } end
+
         local wm = new("Frame", {
             Parent           = self.Holder,
             Position         = UDim2New(0, 12, 0, 10),
@@ -274,7 +330,6 @@ local Library do
             BackgroundColor3 = self.Theme.Inline,
             BorderSizePixel  = 0,
         })
-        corner(4).Parent = wm
         stroke(self.Theme.Border, 1, 0.2).Parent = wm
         new("Frame", {
             Parent           = wm,
@@ -282,22 +337,129 @@ local Library do
             BackgroundColor3 = self.Theme.Accent,
             BorderSizePixel  = 0,
         })
-        local lbl = new("TextLabel", {
+
+        local row = new("Frame", {
             Parent                 = wm,
-            Position               = UDim2New(0, 10, 0, 0),
             Size                   = UDim2New(0, 0, 1, 0),
             AutomaticSize          = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
-            Font                   = self.FontBold,
-            TextSize               = 13,
-            Text                   = tostring(text) .. "  ",
-            TextColor3             = self.Theme.Text,
         })
+        new("UIListLayout", {
+            Parent              = row,
+            FillDirection       = Enum.FillDirection.Horizontal,
+            VerticalAlignment   = Enum.VerticalAlignment.Center,
+            SortOrder           = Enum.SortOrder.LayoutOrder,
+        })
+        new("UIPadding", {
+            Parent       = row,
+            PaddingLeft  = UDimNew(0, 8),
+            PaddingRight = UDimNew(0, 8),
+        })
+
+        -- live data sources
+        local stats           = pcall(function() return game:GetService("Stats") end)
+                                  and game:GetService("Stats") or nil
+        local fpsSmoothed     = 60
+        local lastTick        = os.clock()
+        local function getFps()
+            local now = os.clock()
+            local dt  = now - lastTick
+            lastTick  = now
+            if dt > 0 then
+                local cur = 1 / dt
+                fpsSmoothed = fpsSmoothed + (cur - fpsSmoothed) * 0.1
+            end
+            return MathFloor(fpsSmoothed + 0.5)
+        end
+        local function getPing()
+            local ok, ping = pcall(function()
+                if stats and stats.Network and stats.Network.ServerStatsItem
+                   and stats.Network.ServerStatsItem["Data Ping"] then
+                    return MathFloor(stats.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
+                end
+                return MathFloor(LocalPlayer:GetNetworkPing() * 1000 + 0.5)
+            end)
+            return ok and ping or 0
+        end
+        local function getTime() return os.date("%H:%M") end
+        local function getDate() return os.date("%Y-%m-%d") end
+
+        local function resolve(raw)
+            local s = tostring(raw)
+            s = s:gsub("%%user%%", LocalPlayer.Name)
+            s = s:gsub("%%disp%%", LocalPlayer.DisplayName or LocalPlayer.Name)
+            s = s:gsub("%%fps%%",  tostring(getFps())  .. " fps")
+            s = s:gsub("%%ping%%", tostring(getPing()) .. " ms")
+            s = s:gsub("%%time%%", getTime())
+            s = s:gsub("%%date%%", getDate())
+            return s
+        end
+
+        local function isDynamic(raw)
+            local s = tostring(raw)
+            return s:find("%%fps%%") or s:find("%%ping%%")
+                or s:find("%%time%%") or s:find("%%date%%")
+        end
+
+        local labels        = {}
+        local dynamicLabels = {}
+
+        local function buildField(i, raw)
+            if i > 1 then
+                new("TextLabel", {
+                    Parent                 = row,
+                    LayoutOrder            = i * 2 - 1,
+                    Size                   = UDim2New(0, 14, 1, 0),
+                    BackgroundTransparency = 1,
+                    Font                   = self.Font,
+                    TextSize               = 13,
+                    Text                   = "|",
+                    TextColor3             = self.Theme.AccentDim,
+                })
+            end
+            local lbl = new("TextLabel", {
+                Parent                 = row,
+                LayoutOrder            = i * 2,
+                Size                   = UDim2New(0, 0, 1, 0),
+                AutomaticSize          = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                Font                   = self.Font,
+                TextSize               = 12,
+                Text                   = resolve(raw),
+                TextColor3             = (i == 1) and self.Theme.Accent or self.Theme.Text,
+            })
+            labels[i] = { Label = lbl, Raw = raw }
+            if isDynamic(raw) then
+                dynamicLabels[#dynamicLabels + 1] = labels[i]
+            end
+        end
+        for i, v in ipairs(fields) do buildField(i, v) end
+
+        -- live updater (only if there are dynamic fields)
+        if #dynamicLabels > 0 then
+            self:Connect(RunService.Heartbeat, function()
+                getFps() -- keep smoothing fresh
+            end)
+            self:Thread(function()
+                while wm.Parent do
+                    for _, item in ipairs(dynamicLabels) do
+                        item.Label.Text = resolve(item.Raw)
+                    end
+                    task.wait(0.25)
+                end
+            end)
+        end
+
         self:MakeDraggable(wm)
         return {
-            Instance     = wm,
-            Set          = function(_, t) lbl.Text = tostring(t) .. "  " end,
-            SetVisible   = function(_, b) wm.Visible = b end,
+            Instance   = wm,
+            SetField   = function(_, i, t)
+                if labels[i] then
+                    labels[i].Raw         = t
+                    labels[i].Label.Text  = resolve(t)
+                end
+            end,
+            SetVisible = function(_, b) wm.Visible = b end,
         }
     end
 
@@ -444,35 +606,35 @@ local Library do
 
         self:MakeDraggable(main, titleBar)
 
-        -- Tab bar
+        -- Tab bar : equal-width tabs separated by thin vertical dividers
         local tabBar = new("Frame", {
             Parent                 = main,
-            Size                   = UDim2New(1, -40, 0, 30),
-            Position               = UDim2New(0, 20, 0, 40),
+            Size                   = UDim2New(1, 0, 0, 30),
+            Position               = UDim2New(0, 0, 0, 40),
             BackgroundTransparency = 1,
         })
-        new("UIListLayout", {
+        local tabGrid = new("UIListLayout", {
             Parent              = tabBar,
             FillDirection       = Enum.FillDirection.Horizontal,
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            HorizontalFlex      = Enum.UIFlexAlignment.Fill,
             VerticalAlignment   = Enum.VerticalAlignment.Center,
-            Padding             = UDimNew(0, 90),
+            SortOrder           = Enum.SortOrder.LayoutOrder,
         })
 
         new("Frame", {
-            Parent           = main,
-            Size             = UDim2New(1, -40, 0, 1),
-            Position         = UDim2New(0, 20, 0, 72),
-            BackgroundColor3 = self.Theme.Divider,
-            BorderSizePixel  = 0,
-            BackgroundTransparency = 0.4,
+            Parent                 = main,
+            Size                   = UDim2New(1, 0, 0, 1),
+            Position               = UDim2New(0, 0, 0, 71),
+            BackgroundColor3       = self.Theme.Divider,
+            BorderSizePixel        = 0,
+            BackgroundTransparency = 0.5,
         })
 
         -- Content area
         local content = new("Frame", {
             Parent                 = main,
-            Position               = UDim2New(0, 20, 0, 84),
-            Size                   = UDim2New(1, -40, 1, -100),
+            Position               = UDim2New(0, 0, 0, 76),
+            Size                   = UDim2New(1, 0, 1, -86),
             BackgroundTransparency = 1,
             ClipsDescendants       = true,
         })
@@ -484,6 +646,8 @@ local Library do
         function Window:SetOpen(b)
             self.IsOpen     = b
             main.Visible    = b
+            setCursorVisible(b)
+            if b then followCursor() else unfollowCursor() end
         end
 
         function Window:Toggle() self:SetOpen(not self.IsOpen) end
@@ -515,11 +679,16 @@ local Library do
                 Active  = false,
             }
 
-            -- tab button
+            -- tab button (equal width via flex)
             local btnHolder = new("Frame", {
                 Parent                 = tabBar,
-                Size                   = UDim2New(0, 150, 1, 0),
+                Size                   = UDim2New(0, 1, 1, 0),
                 BackgroundTransparency = 1,
+                LayoutOrder            = #Window.Pages + 1,
+            })
+            new("UIFlexItem", {
+                Parent      = btnHolder,
+                FlexMode    = Enum.UIFlexMode.Fill,
             })
             local btn = new("TextButton", {
                 Parent                 = btnHolder,
@@ -531,11 +700,21 @@ local Library do
                 TextColor3             = Library.Theme.TextDim,
                 AutoButtonColor        = false,
             })
+            -- thin vertical divider on the right edge (acts like the | between tabs)
+            new("Frame", {
+                Parent                 = btnHolder,
+                AnchorPoint            = Vector2New(1, 0.5),
+                Position               = UDim2New(1, 0, 0.5, 0),
+                Size                   = UDim2New(0, 1, 0, 14),
+                BackgroundColor3       = Library.Theme.Divider,
+                BorderSizePixel        = 0,
+                BackgroundTransparency = 0.5,
+            })
             local underline = new("Frame", {
                 Parent                 = btnHolder,
                 AnchorPoint            = Vector2New(0.5, 1),
                 Position               = UDim2New(0.5, 0, 1, 0),
-                Size                   = UDim2New(1, 0, 0, 1),
+                Size                   = UDim2New(1, -4, 0, 2),
                 BackgroundColor3       = Library.Theme.Accent,
                 BorderSizePixel        = 0,
                 BackgroundTransparency = 1,
@@ -557,7 +736,7 @@ local Library do
             new("UIListLayout", {
                 Parent              = columnsHolder,
                 FillDirection       = Enum.FillDirection.Horizontal,
-                Padding             = UDimNew(0, 20),
+                Padding             = UDimNew(0, 1),
                 HorizontalFlex      = Enum.UIFlexAlignment.Fill,
                 VerticalFlex        = Enum.UIFlexAlignment.Fill,
                 SortOrder           = Enum.SortOrder.LayoutOrder,
@@ -575,6 +754,20 @@ local Library do
                     AutomaticCanvasSize    = Enum.AutomaticSize.Y,
                     LayoutOrder            = i,
                 })
+                new("UIFlexItem", { Parent = col, FlexMode = Enum.UIFlexMode.Fill })
+                -- right-side vertical divider between columns
+                if i < Page.Columns then
+                    new("Frame", {
+                        Parent                 = col,
+                        AnchorPoint            = Vector2New(1, 0),
+                        Position               = UDim2New(1, 0, 0, -4),
+                        Size                   = UDim2New(0, 1, 1, 8),
+                        BackgroundColor3       = Library.Theme.Divider,
+                        BorderSizePixel        = 0,
+                        BackgroundTransparency = 0.6,
+                        ZIndex                 = 0,
+                    })
+                end
                 new("UIListLayout", {
                     Parent    = col,
                     Padding   = UDimNew(0, 14),
@@ -582,10 +775,10 @@ local Library do
                 })
                 new("UIPadding", {
                     Parent        = col,
-                    PaddingTop    = UDimNew(0, 4),
+                    PaddingTop    = UDimNew(0, 6),
                     PaddingBottom = UDimNew(0, 10),
-                    PaddingLeft   = UDimNew(0, 2),
-                    PaddingRight  = UDimNew(0, 2),
+                    PaddingLeft   = UDimNew(0, 14),
+                    PaddingRight  = UDimNew(0, 14),
                 })
                 Page.ColumnsData[i] = col
             end
@@ -631,7 +824,7 @@ local Library do
             AutomaticSize          = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
         })
-        -- divider line at top with the floating label overlapping it
+        -- top divider line with the floating label overlapping it
         new("Frame", {
             Parent           = box,
             Position         = UDim2New(0, 0, 0, 8),
@@ -639,18 +832,46 @@ local Library do
             BackgroundColor3 = Library.Theme.Divider,
             BorderSizePixel  = 0,
         })
-        new("TextLabel", {
+        local header = new("Frame", {
             Parent                 = box,
             Position               = UDim2New(0, 0, 0, 0),
             Size                   = UDim2New(0, 0, 0, 16),
             AutomaticSize          = Enum.AutomaticSize.X,
             BackgroundColor3       = Library.Theme.Background,
             BorderSizePixel        = 0,
+        })
+        new("UIListLayout", {
+            Parent              = header,
+            FillDirection       = Enum.FillDirection.Horizontal,
+            VerticalAlignment   = Enum.VerticalAlignment.Center,
+            SortOrder           = Enum.SortOrder.LayoutOrder,
+            Padding             = UDimNew(0, 3),
+        })
+        new("UIPadding", {
+            Parent       = header,
+            PaddingLeft  = UDimNew(0, 4),
+            PaddingRight = UDimNew(0, 6),
+        })
+        new("TextLabel", {
+            Parent                 = header,
+            LayoutOrder            = 1,
+            Size                   = UDim2New(0, 8, 0, 14),
+            BackgroundTransparency = 1,
+            Font                   = Library.FontBold,
+            TextSize               = 9,
+            Text                   = "v",
+            TextColor3             = Library.Theme.Accent,
+        })
+        new("TextLabel", {
+            Parent                 = header,
+            LayoutOrder            = 2,
+            Size                   = UDim2New(0, 0, 0, 16),
+            AutomaticSize          = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
             Font                   = Library.Font,
             TextSize               = 13,
-            Text                   = "  " .. Section.Name .. "  ",
+            Text                   = Section.Name,
             TextColor3             = Library.Theme.Text,
-            TextXAlignment         = Enum.TextXAlignment.Left,
         })
 
         local body = new("Frame", {
@@ -862,8 +1083,30 @@ local Library do
             Text             = Btn.Name,
             TextColor3       = Btn.Risky and Library.Theme.Risky or Library.Theme.Text,
         })
-        corner(3).Parent = b
-        stroke(Library.Theme.AccentDim, 1, 0.4).Parent = b
+        local bs = stroke(Library.Theme.AccentDim, 1, 0.4)
+        bs.Parent = b
+
+        b.MouseEnter:Connect(function()
+            Library:Tween(bs, TweenInfo.new(0.12), {
+                Color        = Library.Theme.Accent,
+                Transparency = 0,
+                Thickness    = 1,
+            })
+            Library:Tween(b, TweenInfo.new(0.12), {
+                BackgroundColor3 = Library.Theme.SliderBg,
+            })
+        end)
+        b.MouseLeave:Connect(function()
+            Library:Tween(bs, TweenInfo.new(0.15), {
+                Color        = Library.Theme.AccentDim,
+                Transparency = 0.4,
+                Thickness    = 1,
+            })
+            Library:Tween(b, TweenInfo.new(0.15), {
+                BackgroundColor3 = Library.Theme.Element,
+            })
+        end)
+
         b.MouseButton1Click:Connect(function()
             Library:SafeCall(Btn.Callback)
             Library:Tween(b, TweenInfo.new(0.08), { BackgroundColor3 = Library.Theme.Accent })
