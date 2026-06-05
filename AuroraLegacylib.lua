@@ -78,18 +78,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(15,  15,  20),
-            Inline      = FromRGB(24,  24,  30),
+            Background  = FromRGB(8,    8,  12),
+            Inline      = FromRGB(18,  18,  24),
             Border      = FromRGB(140,  90, 180),
             Outline     = FromRGB(10,   8,  14),
             Accent      = FromRGB(180, 110, 220),
             AccentDim   = FromRGB(120,  70, 170),
             Text        = FromRGB(235, 225, 245),
             TextDim     = FromRGB(170, 160, 190),
-            Element     = FromRGB(34,  34,  42),
+            Element     = FromRGB(28,  28,  36),
             Risky       = FromRGB(255,  70,  70),
             Divider     = FromRGB(140,  90,  180),
-            SliderBg    = FromRGB(46,  46,  56),
+            SliderBg    = FromRGB(38,  38,  48),
         },
 
         Holder       = nil,
