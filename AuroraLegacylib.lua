@@ -2,11 +2,10 @@
     Aurora Legacy UI Library
     -----------------------------------------------------------------
     Visual clone of the "Aurora Legacy | Trident Survival | Full Version"
-    cheat menu. Same fluent API style as HELLSHADE so the script side
-    looks familiar.
+    cheat menu.
 
     Loader:
-        local Library = loadstring(game:HttpGet("YOUR_RAW_URL"))()
+        local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/denplanewalker/libraries/refs/heads/main/AuroraLegacylib.lua"))()
 
     Quick example:
         local Window = Library:Window({
@@ -79,18 +78,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(0,   0,   0),
-            Inline      = FromRGB(16,  16,  20),
+            Background  = FromRGB(15,  15,  20),
+            Inline      = FromRGB(24,  24,  30),
             Border      = FromRGB(140,  90, 180),
             Outline     = FromRGB(10,   8,  14),
             Accent      = FromRGB(180, 110, 220),
             AccentDim   = FromRGB(120,  70, 170),
             Text        = FromRGB(235, 225, 245),
             TextDim     = FromRGB(170, 160, 190),
-            Element     = FromRGB(28,  28,  34),
+            Element     = FromRGB(34,  34,  42),
             Risky       = FromRGB(255,  70,  70),
-            Divider     = FromRGB(140,  90, 180),
-            SliderBg    = FromRGB(40,  40,  48),
+            Divider     = FromRGB(140,  90,  180),
+            SliderBg    = FromRGB(46,  46,  56),
         },
 
         Holder       = nil,
