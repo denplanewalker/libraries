@@ -78,18 +78,18 @@ local Library do
         MenuKeybind  = "RightShift",
 
         Theme = {
-            Background  = FromRGB(8,    8,    8),
-            Inline      = FromRGB(18,   18,   22),
-            Border      = FromRGB(140,  90,   180),
-            Outline     = FromRGB(10,   8,    14),
-            Accent      = FromRGB(180,  110,  220),
-            AccentDim   = FromRGB(120,  70,   170),
-            Text        = FromRGB(235,  225,  245),
-            TextDim     = FromRGB(170,  160,  190),
-            Element     = FromRGB(30,   30,   38),
+            Background  = FromRGB(8,    8,    8),   -- #080808
+            Inline      = FromRGB(18,   18,   22),  -- #121216
+            Border      = FromRGB(148,  96,   200), -- #9460C8 (Accent)
+            Outline     = FromRGB(6,    6,    6),   -- #060606
+            Accent      = FromRGB(148,  96,   200), -- #9460C8
+            AccentDim   = FromRGB(120,  70,   170), -- dimmed accent
+            Text        = FromRGB(215,  215,  215), -- #D7D7D7
+            TextDim     = FromRGB(143,  143,  143), -- #8F8F8F
+            Element     = FromRGB(30,   30,   38),  -- #1E1E26
             Risky       = FromRGB(255,  70,   70),
-            Divider     = FromRGB(140,  90,   180),
-            SliderBg    = FromRGB(42,   42,   52),
+            Divider     = FromRGB(148,  96,   200), -- #9460C8
+            SliderBg    = FromRGB(42,   42,   52),  -- #2A2A34
         },
 
         Holder       = nil,
@@ -212,11 +212,9 @@ local Library do
 
     ----------------------------------------------------------------
     -- Custom cursor
-    --   Purple down-triangle with a black outline that replaces the
-    --   system mouse icon while the GUI is open.
-    --   Lives on its own ScreenGui with DisplayOrder high enough
-    --   to draw above the menu but is fully non-interactive, so it
-    --   never blocks clicks on the toggles / buttons below it.
+    --   Replicates the Sirex.cc cursor: three rotated lines forming
+    --   a triangular cursor. Lives on its own ScreenGui with
+    --   DisplayOrder=9999, fully non-interactive.
     ----------------------------------------------------------------
     local CursorGui = new("ScreenGui", {
         Name                   = "AuroraLegacyCursor",
@@ -225,26 +223,46 @@ local Library do
         ResetOnSpawn           = false,
         Parent                 = gethui_fn(),
     })
-    local Cursor = new("TextLabel", {
+    
+    -- Three lines forming a cursor triangle (like Sirex.cc)
+    local CursorLine1 = new("Frame", {
         Parent                 = CursorGui,
         Active                 = false,
-        Size                   = UDim2New(0, 28, 0, 28),
-        BackgroundTransparency = 1,
-        Font                   = Enum.Font.GothamBlack,
-        TextSize               = 28,
-        Text                   = "▼",
-        TextColor3             = Library.Theme.Accent,
-        TextStrokeTransparency = 0,
-        TextStrokeColor3       = Library.Theme.Background,
+        Size                   = UDim2New(0, 28, 0, 2),
+        BackgroundColor3       = Library.Theme.Accent,
+        BorderSizePixel        = 0,
+        Rotation               = 135,
         Visible                = false,
     })
+    local CursorLine2 = new("Frame", {
+        Parent                 = CursorGui,
+        Active                 = false,
+        Size                   = UDim2New(0, 14, 0, 2),
+        BackgroundColor3       = Library.Theme.Accent,
+        BorderSizePixel        = 0,
+        Rotation               = -110.556,
+        Visible                = false,
+    })
+    local CursorLine3 = new("Frame", {
+        Parent                 = CursorGui,
+        Active                 = false,
+        Size                   = UDim2New(0, 14, 0, 2),
+        BackgroundColor3       = Library.Theme.Accent,
+        BorderSizePixel        = 0,
+        Rotation               = 21.5,
+        Visible                = false,
+    })
+    
     local cursorConn
     local function followCursor()
         if cursorConn then return end
         cursorConn = Library:Connect(RunService.RenderStepped, function()
             local pos = UserInputService:GetMouseLocation()
-            -- center the cursor on the mouse position
-            Cursor.Position = UDim2New(0, pos.X - 14, 0, pos.Y - 14)
+            -- Center the cursor on mouse position
+            -- Line1 is the main shaft (28px), lines 2&3 are the arrow head
+            CursorLine1.Position = UDim2New(0, pos.X - 14, 0, pos.Y - 1)
+            CursorLine2.Position = UDim2New(0, pos.X - 7, 0, pos.Y - 1)
+            CursorLine3.Position = UDim2New(0, pos.X - 7, 0, pos.Y - 1)
         end)
     end
     local function unfollowCursor()
@@ -254,7 +272,9 @@ local Library do
         end
     end
     local function setCursorVisible(b)
-        Cursor.Visible = b
+        CursorLine1.Visible = b
+        CursorLine2.Visible = b
+        CursorLine3.Visible = b
         UserInputService.MouseIconEnabled = not b
     end
     function Library:SetCursor(b)
@@ -333,6 +353,10 @@ local Library do
     --   for the standard 6 fields fit the layout in the screenshot.
     --   Pass a `widths` table to override, e.g.
     --       Library:Watermark({...}, {70, 30, 110, 60, 60, 40})
+    --   Color format (matches Sirex.cc):
+    --   Field 1: Accent color (#9460C8) - "Sirex.cc"
+    --   Separators: Dark gray (#060606) - "〡"
+    --   Other fields: Light gray (#D7D7D7)
     ----------------------------------------------------------------
     local WATERMARK_DEFAULTS = { 70, 30, 100, 56, 56, 38 }
     local WATERMARK_SEP_W    = 14
@@ -349,6 +373,156 @@ local Library do
             totalW = totalW + w
             if i > 1 then totalW = totalW + WATERMARK_SEP_W end
         end
+
+        local wm = new("Frame", {
+            Parent           = self.Holder,
+            Position         = UDim2New(0, 12, 0, 10),
+            Size             = UDim2New(0, totalW, 0, 24),
+            BackgroundColor3 = self.Theme.Background,  -- #080808
+            BorderSizePixel  = 0,
+            ClipsDescendants = true,
+        })
+        -- Accent top border
+        new("Frame", {
+            Parent           = wm,
+            Size             = UDim2New(1, 0, 0, 2),
+            BackgroundColor3 = self.Theme.Accent,
+            BorderSizePixel  = 0,
+        })
+        -- Outer glow strokes
+        stroke(self.Theme.Accent, 1, 0.1).Parent = wm
+        stroke(self.Theme.Accent, 2, 0.7).Parent  = wm
+
+        local row = new("Frame", {
+            Parent                 = wm,
+            Size                   = UDim2New(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+        })
+        new("UIListLayout", {
+            Parent              = row,
+            FillDirection       = Enum.FillDirection.Horizontal,
+            VerticalAlignment   = Enum.VerticalAlignment.Center,
+            SortOrder           = Enum.SortOrder.LayoutOrder,
+        })
+        new("UIPadding", {
+            Parent       = row,
+            PaddingLeft  = UDimNew(0, WATERMARK_PAD),
+            PaddingRight = UDimNew(0, WATERMARK_PAD),
+        })
+
+        -- live data sources
+        local stats           = pcall(function() return game:GetService("Stats") end)
+                                  and game:GetService("Stats") or nil
+        local fpsSmoothed     = 60
+        local lastTick        = os.clock()
+        local function getFps()
+            local now = os.clock()
+            local dt  = now - lastTick
+            lastTick  = now
+            if dt > 0 then
+                local cur = 1 / dt
+                fpsSmoothed = fpsSmoothed + (cur - fpsSmoothed) * 0.1
+            end
+            return MathFloor(fpsSmoothed + 0.5)
+        end
+        local function getPing()
+            local ok, ping = pcall(function()
+                if stats and stats.Network and stats.Network.ServerStatsItem
+                   and stats.Network.ServerStatsItem["Data Ping"] then
+                    return MathFloor(stats.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
+                end
+                return MathFloor(LocalPlayer:GetNetworkPing() * 1000 + 0.5)
+            end)
+            return ok and ping or 0
+        end
+        local function getTime() return os.date("%H:%M") end
+        local function getDate() return os.date("%Y-%m-%d") end
+
+        local function resolve(raw)
+            local s = tostring(raw)
+            s = s:gsub("%%user%%", LocalPlayer.Name)
+            s = s:gsub("%%disp%%", LocalPlayer.DisplayName or LocalPlayer.Name)
+            s = s:gsub("%%fps%%",  tostring(getFps())  .. " fps")
+            s = s:gsub("%%ping%%", tostring(getPing()) .. " ms")
+            s = s:gsub("%%time%%", getTime())
+            s = s:gsub("%%date%%", getDate())
+            return s
+        end
+
+        local function isDynamic(raw)
+            local s = tostring(raw)
+            return s:find("%%fps%%") or s:find("%%ping%%")
+                or s:find("%%time%%") or s:find("%%date%%")
+        end
+
+        local labels        = {}
+        local dynamicLabels = {}
+
+        local function buildField(i, raw)
+            local fieldW = (widths and widths[i]) or WATERMARK_DEFAULTS[i] or 60
+            if i > 1 then
+                -- Separator "〡" in dark gray (#060606)
+                new("TextLabel", {
+                    Parent                 = row,
+                    LayoutOrder            = i * 2 - 1,
+                    Size                   = UDim2New(0, WATERMARK_SEP_W, 1, 0),
+                    BackgroundTransparency = 1,
+                    Font                   = self.Font,
+                    TextSize               = 13,
+                    Text                   = "〡",
+                    TextColor3             = self.Theme.Outline,  -- #060606
+                    TextXAlignment         = Enum.TextXAlignment.Center,
+                })
+            end
+            local isFirst = (i == 1)
+            local lbl = new("TextLabel", {
+                Parent                 = row,
+                LayoutOrder            = i * 2,
+                Size                   = UDim2New(0, fieldW, 1, 0),
+                BackgroundTransparency = 1,
+                Font                   = self.Font,
+                TextSize               = 12,
+                Text                   = resolve(raw),
+                -- Field 1 (Sirex.cc) in Accent, others in Text (#D7D7D7)
+                TextColor3             = isFirst and self.Theme.Accent or self.Theme.Text,
+                TextTruncate           = Enum.TextTruncate.AtEnd,
+                TextXAlignment         = Enum.TextXAlignment.Center,
+                RichText               = true,
+            })
+            labels[i] = { Label = lbl, Raw = raw }
+            if isDynamic(raw) then
+                dynamicLabels[#dynamicLabels + 1] = labels[i]
+            end
+        end
+        for i, v in ipairs(fields) do buildField(i, v) end
+
+        -- live updater (only if there are dynamic fields)
+        if #dynamicLabels > 0 then
+            self:Connect(RunService.Heartbeat, function()
+                getFps() -- keep smoothing fresh
+            end)
+            self:Thread(function()
+                while wm.Parent do
+                    for _, item in ipairs(dynamicLabels) do
+                        item.Label.Text = resolve(item.Raw)
+                    end
+                    task.wait(0.25)
+                end
+            end)
+        end
+
+        self:MakeDraggable(wm)
+        return {
+            Instance   = wm,
+            SetField   = function(_, i, t)
+                if labels[i] then
+                    labels[i].Raw         = t
+                    labels[i].Label.Text  = resolve(t)
+                end
+            end,
+            SetVisible = function(_, b) wm.Visible = b end,
+        }
+    end
 
         local wm = new("Frame", {
             Parent           = self.Holder,
