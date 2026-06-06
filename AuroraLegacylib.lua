@@ -355,7 +355,7 @@ local Library do
     --       Library:Watermark({...}, {70, 30, 110, 60, 60, 40})
     --   Color format (matches Sirex.cc):
     --   Field 1: Accent color (#9460C8) - "Sirex.cc"
-    --   Separators: Dark gray (#060606) - "〡"
+    --   Separators: Dark gray (#060606) - "|"
     --   Other fields: Light gray (#D7D7D7)
     ----------------------------------------------------------------
     local WATERMARK_DEFAULTS = { 70, 30, 100, 56, 56, 38 }
@@ -461,7 +461,7 @@ local Library do
         local function buildField(i, raw)
             local fieldW = (widths and widths[i]) or WATERMARK_DEFAULTS[i] or 60
             if i > 1 then
-                -- Separator "〡" in dark gray (#060606)
+                -- Separator "|" in dark gray (#060606)
                 new("TextLabel", {
                     Parent                 = row,
                     LayoutOrder            = i * 2 - 1,
@@ -469,7 +469,7 @@ local Library do
                     BackgroundTransparency = 1,
                     Font                   = self.Font,
                     TextSize               = 13,
-                    Text                   = "〡",
+                    Text                   = "|",
                     TextColor3             = self.Theme.Outline,  -- #060606
                     TextXAlignment         = Enum.TextXAlignment.Center,
                 })
